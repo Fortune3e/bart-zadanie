@@ -24,14 +24,24 @@ router.get("/:size/:path(*)", async (req, res) =>{
 
         const imageObj = findImageByPath(json, path);
 
-        if(!imageObj) return res.status(404).send("Photo not found");
+        if(!imageObj){
+            return res.status(404).json({
+                code: 404,
+                name: "NOT_FOUND",
+                description: `Image ${path} not found`
+            });
+        }
         const image = sharp(`${GALLERIES_FOLDER}/${path}`);
         const resizedImage = await image.resize(parseInt(width), parseInt(height)).toBuffer();
 
         res.set('Content-Type', 'image/jpeg');
         return res.status(200).send(resizedImage);
     } catch (err) {
-        return res.status(500).send("The photo preview can't be generated.");
+        return res.status(500).json({
+            code: 500,
+            name: "INTERNAL_SERVER_ERROR",
+            description: "The photo preview can't be generated."
+        });
     }
 });
 

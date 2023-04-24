@@ -22,15 +22,29 @@ const handleUpload = (req, res, next) => {
         const data = fs.readFileSync('gallery.json');
         const json = JSON.parse(data);
         const gallery = findElementByPath(json, req.params.path);
-        if(!gallery) return res.status(404).send("Gallery not found");
+        if(!gallery) {
+            return res.status(404).json({
+                code: 404,
+                name: "NOT_FOUND",
+                description: "None"
+            });
+        }
         upload.single('image')(req, res, (err) => {
             if (err) {
-                return res.status(400).send("Invalid request - file not found.");
+                return res.status(400).json({
+                    code: 400,
+                    name: "BAD_REQUEST",
+                    description: "file not found"
+                });
             }
             next();
         });
     } catch (err) {
-        return res.status(500).send("Error: Internal server error");
+        return res.status(500).json({
+            code: 500,
+            name: "INTERNAL_SERVER_ERROR",
+            description: "An error occurred while processing your request. Please try again later."
+        });
     }
 };
 
@@ -53,7 +67,11 @@ router.get("", (req, res) =>{
         const isValid = validateGalleryList(result);
         if (isValid) return res.status(200).json(result);
     } catch (err) {
-        return res.status(500).send("Error: Internal server error");
+        return res.status(500).json({
+            code: 500,
+            name: "INTERNAL_SERVER_ERROR",
+            description: "An error occurred while processing your request. Please try again later."
+        });
     }
 });
 
@@ -70,7 +88,13 @@ router.post("", async (req, res) =>{
         const data = fs.readFileSync('gallery.json');
         const json = JSON.parse(data);
 
-        if(alreadyExists(json, newGallery)) return res.status(409).send("Gallery with this name already exists");
+        if(alreadyExists(json, newGallery)) {
+            return res.status(409).json({
+                code: 409,
+                name: "CONFLICT",
+                description: "directory already exists"
+            });
+        }
 
         json.push(newGallery);
         const newData = JSON.stringify(json);
@@ -81,7 +105,11 @@ router.post("", async (req, res) =>{
             name: newGallery.name
         });
     } catch (err) {
-        return res.status(500).send("Error: Internal server error");
+        return res.status(500).json({
+            code: 500,
+            name: "INTERNAL_SERVER_ERROR",
+            description: "An error occurred while processing your request. Please try again later."
+        });
     }
 });
 
@@ -92,7 +120,13 @@ router.get("/:path", (req, res) => {
         const data = fs.readFileSync('gallery.json');
         const json = JSON.parse(data);
         const gallery = findElementByPath(json, path);
-        if(!gallery) return res.status(404).send("Gallery does not exists");
+        if(!gallery) {
+            return res.status(404).json({
+                code: 404,
+                name: "NOT_FOUND",
+                description: "None"
+            });
+        }
 
         const images = {
             gallery: {
@@ -105,13 +139,23 @@ router.get("/:path", (req, res) => {
         const isValid = validateGalleryDetail(images);
         if(isValid) return res.status(200).json(images);
     } catch (err) {
-        return res.status(500).send("Error: Internal server error");
+        return res.status(500).json({
+            code: 500,
+            name: "INTERNAL_SERVER_ERROR",
+            description: "An error occurred while processing your request. Please try again later."
+        });
     }
 });
 
 router.post("/:path", handleUpload, (req, res) => {
     try{
-        if (!req.file) return res.status(400).send("Invalid request - file not found.");
+        if (!req.file) {
+            return res.status(400).json({
+                code: 400,
+                name: "BAD_REQUEST",
+                description: "zero files uploaded"
+            });
+        }
         const data = fs.readFileSync('gallery.json');
         const json = JSON.parse(data);
 
@@ -139,7 +183,11 @@ router.post("/:path", handleUpload, (req, res) => {
             uploaded: [newImage]
         });
     } catch (err) {
-        return res.status(500).send("Error: Internal server error");
+        return res.status(500).json({
+            code: 500,
+            name: "INTERNAL_SERVER_ERROR",
+            description: "An error occurred while processing your request. Please try again later."
+        });
     }
 });
 
@@ -166,7 +214,13 @@ router.delete("/:path(*)", async (req, res) => {
             }
         });
 
-        if(!isFolder && !isImage) return res.status(404).send("Gallery/photo does not exists");
+        if(!isFolder && !isImage) {
+            return res.status(404).json({
+                code: 404,
+                name: "NOT_FOUND",
+                description: `directory/file ${req.params.path} not exists`
+            });
+        }
 
         if(isFolder){
             const folderPath = path.join(__dirname, "..", GALLERIES_FOLDER, req.params.path);
@@ -177,9 +231,60 @@ router.delete("/:path(*)", async (req, res) => {
         }
         const newData = JSON.stringify(filteredJson);
         fs.writeFileSync('gallery.json', newData);
-        return res.status(200).send("Gallery/photo was deleted");
+        return res.status(200).json({
+            status: "ok"
+        });
     } catch (err) {
-        return res.status(500).send("Error: Internal server error");
+        return res.status(500).json({
+            code: 500,
+            name: "INTERNAL_SERVER_ERROR",
+            description: "An error occurred while processing your request. Please try again later."
+        });
+    }
+});
+
+router.put("/:path", async (req, res) =>{
+    try{
+        const isValid = validateGalleryInsert(req.body);
+        if (!isValid) return res.status(400).send("error");
+
+        const data = fs.readFileSync('gallery.json');
+        const json = JSON.parse(data);
+        const gallery = findElementByPath(json, req.params.path);
+        if(!gallery) {
+            return res.status(404).json({
+                code: 404,
+                name: "NOT_FOUND",
+                description: "None"
+            });
+        }
+
+        json.forEach(element => {
+            if(element.path === req.params.path){
+                element.name = req.body.name;
+                element.path = req.body.name;
+                element.images.forEach(image => {
+                    image.fullpath = `${element.path}/${image.path}`;
+                });
+            }
+        });
+
+        const newData = JSON.stringify(json);
+        fs.writeFileSync('gallery.json', newData);
+        const currentPath = path.join(__dirname, "..", GALLERIES_FOLDER, req.params.path);
+        const newPath = path.join(__dirname, "..", GALLERIES_FOLDER, req.body.name);
+        await fs.promises.rename(currentPath, newPath);
+
+        return res.status(200).json({
+            path: req.body.name,
+            name: req.body.name
+        });
+    } catch (err) {
+        return res.status(500).json({
+            code: 500,
+            name: "INTERNAL_SERVER_ERROR",
+            description: "An error occurred while processing your request. Please try again later."
+        });
     }
 });
 
