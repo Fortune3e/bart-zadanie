@@ -1,9 +1,10 @@
 const express = require("express");
 const app = express();
 const bodyParser = require('body-parser');
-const port = 8080;
 const galleryRoutes = require("./routes/galleryRoutes.js");
 const imagesRoutes = require("./routes/imagesRoutes.js");
+
+const port = 8080;
 
 app.use(bodyParser.urlencoded({ extended: false }))
 
