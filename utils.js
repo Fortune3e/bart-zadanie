@@ -24,15 +24,37 @@ const findImageByPath = (json, path) => {
 
 const storage = multer.diskStorage({
     destination: (req, file, cb) => {
-      const folderPath = path.join(__dirname, GALLERIES_FOLDER, req.params.path); // Build the folder path based on the request
-      cb(null, folderPath); // Pass the folder path to multer
+        const folderPath = path.join(__dirname, GALLERIES_FOLDER, req.params.path); // Build the folder path based on the request
+        cb(null, folderPath); // Pass the folder path to multer
     },
     filename: (req, file, cb) => {
-      cb(null, file.originalname); // Use the original file name for the uploaded file
+        const ext = path.extname(file.originalname);
+        const name = path.basename(file.originalname, ext);
+        const folderPath = path.join(__dirname, GALLERIES_FOLDER, req.params.path);
+        const files = fs.readdirSync(folderPath);
+        let fileName = name + ext;
+        let i = 1;
+
+        // Generate file name if file with the same name already exists
+        while (files.includes(fileName)) {
+            fileName = name + '-' + i + ext;
+            i++;
+        }
+        cb(null, fileName);
     },
 });
 
-const upload = multer({ storage });
+const upload = multer({
+    storage,
+    // Only accept JPEG files
+    fileFilter: (req, file, cb) => {
+        const ext = path.extname(file.originalname).toLowerCase();
+        if (ext !== '.jpeg' && ext !== '.jpg') {
+            return cb(new Error('Only JPEG files are allowed'));
+        }
+        cb(null, true);
+    }
+});
 
 // Middleware function for handling file uploads
 const handleUpload = (req, res, next) => {
@@ -44,7 +66,7 @@ const handleUpload = (req, res, next) => {
         if(!gallery) return errorHandler(res, 404, "NOT_FOUND", "None");
 
         upload.array('image')(req, res, (err) => {
-            if (err) return errorHandler(res, 400, "BAD_REQUEST", "zero files uploaded");
+            if (err) return errorHandler(res, 400, "BAD_REQUEST", "invalid file");
             next();
         });
     } catch (err) {
