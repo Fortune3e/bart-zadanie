@@ -2,6 +2,7 @@ const Ajv = require('ajv');
 
 const ajv = new Ajv({ allErrors: true });
 
+// Define a JSON schema for a list of galleries
 const galleryListSchema = {
     type: 'object',
     properties: {
@@ -31,6 +32,7 @@ const galleryListSchema = {
     additionalProperties: true
 };
 
+// Define a JSON schema for inserting a new gallery
 const galleryPostSchema = {
     title: "New gallery insert schema",
     type: "object",
@@ -44,6 +46,7 @@ const galleryPostSchema = {
     additionalProperties: false
 }
 
+// Define a JSON schema for a gallery detail
 const galleryDetailSchema = {
     title: "Gallery detail schema",
     type: "object",
@@ -74,6 +77,7 @@ const galleryDetailSchema = {
     additionalProperties: true
 }
 
+// Compile the JSON schemas into functions for validation
 const validateGalleryList = ajv.compile(galleryListSchema);
 const validateGalleryInsert = ajv.compile(galleryPostSchema);
 const validateGalleryDetail = ajv.compile(galleryDetailSchema);

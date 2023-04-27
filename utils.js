@@ -2,10 +2,10 @@ const multer = require('multer');
 const path = require('path');
 const fs = require('fs');
 
-const GALLERIES_FOLDER = "galleries";
+const GALLERIES_FOLDER = "galleries"; // Define the name of the folder where galleries will be stored
 
-const galleryAlreadyExists = (json, newGallery) => {
-    return json.some(element => element.name === newGallery.name);
+const galleryAlreadyExists = (json, newGalleryName) => {
+    return json.some(element => element.name === newGalleryName);
 }
 
 const findGalleryByPath = (json, path) => {
@@ -18,7 +18,7 @@ const findImageByPath = (json, path) => {
         if (image) {
             return image;
         }
-    }
+    };
     return null;
 }
 
@@ -34,24 +34,25 @@ const storage = multer.diskStorage({
 
 const upload = multer({ storage });
 
+// Middleware function for handling file uploads
 const handleUpload = (req, res, next) => {
     try {
-        req.params.path = encodeURI(req.params.path);
+        const encodedPath = encodeURI(req.params.path);
         const data = fs.readFileSync('gallery.json');
         const json = JSON.parse(data);
-        const gallery = findGalleryByPath(json, req.params.path);
+        const gallery = findGalleryByPath(json, encodedPath);
         if(!gallery) return errorHandler(res, 404, "NOT_FOUND", "None");
 
-        upload.single('image')(req, res, (err) => {
-            if (err) return errorHandler(res, 400, "BAD_REQUEST", "file not found");
+        upload.array('image')(req, res, (err) => {
+            if (err) return errorHandler(res, 400, "BAD_REQUEST", "zero files uploaded");
             next();
         });
     } catch (err) {
-        console.log(err);
         return errorHandler(res, 500, "INTERNAL_SERVER_ERROR", "An error occurred while processing your request. Please try again later.");
-    }
+    };
 };
 
+// Error handler function for sending error responses to the client
 const errorHandler = (res, code, name, description) => {
     return res.status(code).json({ code, name, description });
 };

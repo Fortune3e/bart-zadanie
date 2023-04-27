@@ -12,7 +12,8 @@ router.get("", (req, res) =>{
         const result = {
             galleries: newData
         };
-        const isValid = validateGalleryList(result);
+
+        const isValid = validateGalleryList(result); // Check if JSON is valid
         if (!isValid) return errorHandler(res, 500, "INTERNAL_SERVER_ERROR", "An error occurred while processing your request. Please try again later.");
 
         return res.status(200).json(result);
@@ -23,7 +24,7 @@ router.get("", (req, res) =>{
 
 router.post("", async (req, res) =>{
     try {
-        const isValid = validateGalleryInsert(req.body);
+        const isValid = validateGalleryInsert(req.body); // Check if request body JSON is valid
         if (!isValid) return errorHandler(res, 400, "INVALID_SCHEMA", "Bad JSON object");
 
         if (req.body.name.includes('/')) return errorHandler(res, 400, "INVALID_SCHEMA", "Name contains invalid character");
@@ -36,12 +37,13 @@ router.post("", async (req, res) =>{
         const data = fs.readFileSync('gallery.json');
         const json = JSON.parse(data);
 
-        if(galleryAlreadyExists(json, newGallery)) return errorHandler(res, 409, "CONFLICT", "directory already exists");
+        if(galleryAlreadyExists(json, newGallery.name)) return errorHandler(res, 409, "CONFLICT", "directory already exists");
 
         json.push(newGallery);
         const newData = JSON.stringify(json);
         fs.writeFileSync('gallery.json', newData);
-        await fs.promises.mkdir(`${GALLERIES_FOLDER}/${newGallery.path}`, { recursive: true });
+
+        await fs.promises.mkdir(`${GALLERIES_FOLDER}/${req.body.name}`, { recursive: true }); // Creating new directory for gallery
         return res.status(201).json({
             path: newGallery.path,
             name: newGallery.name
@@ -51,13 +53,13 @@ router.post("", async (req, res) =>{
     }
 });
 
-router.get("/:path(*)", (req, res) => {
+router.get("/:path(\\S+)", (req, res) => {
     try{
-        const path = encodeURI(req.params.path);
+        const encodedPath = encodeURI(req.params.path);
 
         const data = fs.readFileSync('gallery.json');
         const json = JSON.parse(data);
-        const gallery = findGalleryByPath(json, path);
+        const gallery = findGalleryByPath(json, encodedPath);
         if(!gallery) return errorHandler(res, 404, "NOT_FOUND", "None");
 
         const images = {
@@ -68,7 +70,7 @@ router.get("/:path(*)", (req, res) => {
             images: gallery.images
         }
 
-        const isValid = validateGalleryDetail(images);
+        const isValid = validateGalleryDetail(images); // Check if JSON is valid
         if(!isValid) return errorHandler(res, 500, "INTERNAL_SERVER_ERROR", "An error occurred while processing your request. Please try again later.");
 
         return res.status(200).json(images);
@@ -77,29 +79,36 @@ router.get("/:path(*)", (req, res) => {
     }
 });
 
-router.post("/:path(*)", handleUpload, (req, res) => {
+router.post("/:path(\\S+)", handleUpload, (req, res) => {
     try{
-        if (!req.file) return errorHandler(res, 400, "BAD_REQUEST", "zero files uploaded");
+        const encodedPath = encodeURI(req.params.path);
+        if (req.files.length === 0) return errorHandler(res, 400, "BAD_REQUEST", "zero files uploaded");
 
         const data = fs.readFileSync('gallery.json');
         const json = JSON.parse(data);
+        const images = [];
 
-        const filePath = req.file.filename;
-        const fullPath = req.params.path + "/" + req.file.filename;
-        let name = path.basename(fullPath, path.extname(fullPath));
-        name = name.charAt(0).toUpperCase() + name.slice(1);
-        const modified = fs.statSync(`${GALLERIES_FOLDER}/${fullPath}`).mtime.toISOString();
-        const newImage = {
-            path: filePath,
-            fullpath: fullPath,
-            name: name,
-            modified: modified,
-        };
+        // Create image objects
+        for(const file of req.files){
+            const filePath = file.filename;
+            const fullPath = encodedPath + "/" + filePath;
+            let name = filePath.split(".")[0];
+            name = name.charAt(0).toUpperCase() + name.slice(1);
+            const modified = fs.statSync(`${GALLERIES_FOLDER}/${req.params.path}/${filePath}`).mtime.toISOString();
+            const newImage = {
+                path: filePath,
+                fullpath: fullPath,
+                name: name,
+                modified: modified,
+            };
+            images.push(newImage);
+        }
 
+        // Add images to galleries JSON
         for (const element of json) {
-            if (element.path === req.params.path) {
-              element.images.push(newImage);
-              break;
+            if (element.path === encodedPath) {
+                element.images.push(...images);
+                break;
             }
         }
 
@@ -107,27 +116,29 @@ router.post("/:path(*)", handleUpload, (req, res) => {
         fs.writeFileSync('gallery.json', newData);
 
         return res.status(201).json({
-            uploaded: [newImage]
+            uploaded: images
         });
     } catch (err) {
         return errorHandler(res, 500, "INTERNAL_SERVER_ERROR", "An error occurred while processing your request. Please try again later.");
     }
 });
 
-router.delete("/:path(*)", async (req, res) => {
+router.delete("/:path(\\S+)", async (req, res) => {
     try{
-        req.params.path = encodeURI(req.params.path);
+        const encodedPath = encodeURI(req.params.path);
         const data = fs.readFileSync('gallery.json');
         const json = JSON.parse(data);
         var isFolder = false;
         var isImage = false;
+
+        // Delete gallery/image from galleries JSON
         const filteredJson = json.filter(obj => {
-            if (obj.path === req.params.path) {
+            if (obj.path === encodedPath) {
                 isFolder = true;
                 return false;
             } else {
                 obj.images = obj.images.filter(img => {
-                    if(img.fullpath === req.params.path){
+                    if(img.fullpath === encodedPath){
                         isImage = true;
                         return false;
                     }else{
@@ -140,10 +151,10 @@ router.delete("/:path(*)", async (req, res) => {
 
         if(isFolder){
             const folderPath = path.join(__dirname, "..", GALLERIES_FOLDER, req.params.path);
-            await fs.promises.rm(folderPath, { recursive: true });
+            await fs.promises.rm(folderPath, { recursive: true }); // Delete gallery folder
         }else if(isImage){
             const filePath = path.join(__dirname, "..", GALLERIES_FOLDER, req.params.path);
-            await fs.promises.unlink(filePath);
+            await fs.promises.unlink(filePath); // Delete image file from gallery folder
         }else{
             return errorHandler(res, 404, "NOT_FOUND", `directory/file ${req.params.path} not exists`);
         }
@@ -154,25 +165,31 @@ router.delete("/:path(*)", async (req, res) => {
             status: "ok"
         });
     } catch (err) {
+        console.log(err);
         return errorHandler(res, 500, "INTERNAL_SERVER_ERROR", "An error occurred while processing your request. Please try again later.");
     }
 });
 
-router.put("/:path(*)", async (req, res) =>{
+// Update name of existing gallery
+router.put("/:path(\\S+)", async (req, res) =>{
     try{
-        req.params.path = encodeURI(req.params.path);
-        const isValid = validateGalleryInsert(req.body);
+        const encodedPath = encodeURI(req.params.path);
+        const isValid = validateGalleryInsert(req.body); // Check if request body JSON is valid
         if (!isValid) return errorHandler(res, 400, "INVALID_SCHEMA", "Bad JSON object");
 
         if (req.body.name.includes('/')) return errorHandler(res, 400, "INVALID_SCHEMA", "Name contains invalid character");
 
         const data = fs.readFileSync('gallery.json');
         const json = JSON.parse(data);
-        const gallery = findGalleryByPath(json, req.params.path);
+
+        const gallery = findGalleryByPath(json, encodedPath);
         if(!gallery) return errorHandler(res, 404, "NOT_FOUND", "None");
 
+        if(galleryAlreadyExists(json, req.body.name)) return errorHandler(res, 409, "CONFLICT", "directory already exists");
+
+        // Update name and path for gallery and its images in galleries JSON
         for(const element of json){
-            if(element.path === req.params.path){
+            if(element.path === encodedPath){
                 element.name = req.body.name;
                 element.path = encodeURI(req.body.name);
                 element.images.forEach(image => {
@@ -185,8 +202,8 @@ router.put("/:path(*)", async (req, res) =>{
         const newData = JSON.stringify(json);
         fs.writeFileSync('gallery.json', newData);
         const currentPath = path.join(__dirname, "..", GALLERIES_FOLDER, req.params.path);
-        const newPath = path.join(__dirname, "..", GALLERIES_FOLDER, encodeURI(req.body.name));
-        await fs.promises.rename(currentPath, newPath);
+        const newPath = path.join(__dirname, "..", GALLERIES_FOLDER, req.body.name);
+        await fs.promises.rename(currentPath, newPath); // Update gallery folder name
 
         return res.status(200).json({
             path: encodeURI(req.body.name),
