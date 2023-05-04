@@ -8,7 +8,7 @@ router.get("", (req, res) =>{
     try{
         const data = fs.readFileSync('gallery.json');
         const json = JSON.parse(data);
-        const newData = json.map(({path, name}) => ({path, name}));
+        const newData = json.map(({path, name, image}) => ({path, name, image}));
         const result = {
             galleries: newData
         };
