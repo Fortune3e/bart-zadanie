@@ -77,13 +77,38 @@ const galleryDetailSchema = {
     additionalProperties: true
 }
 
+// Define a JSON schema for list of images
+const imagesListSchema = {
+    title: "Images schema",
+    type: "object",
+    properties: {
+        images: {
+            type: "array",
+            items: {
+                type: "object",
+                properties: {
+                    path: {type: "string"},
+                    fullpath: {type: "string"},
+                    name: {type: "string"},
+                    modified: {type: "string"}
+                },
+                required: ["path", "fullpath", "name", "modified"]
+            }
+        }
+    },
+    required: ["images"],
+    additionalProperties: true
+}
+
 // Compile the JSON schemas into functions for validation
 const validateGalleryList = ajv.compile(galleryListSchema);
 const validateGalleryInsert = ajv.compile(galleryPostSchema);
 const validateGalleryDetail = ajv.compile(galleryDetailSchema);
+const validateImagesList = ajv.compile(imagesListSchema);
 
 module.exports = {
     validateGalleryList,
     validateGalleryInsert,
-    validateGalleryDetail
+    validateGalleryDetail,
+    validateImagesList
 };
