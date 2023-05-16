@@ -8,7 +8,10 @@ router.get("", (req, res) =>{
     try{
         const data = fs.readFileSync('gallery.json');
         const json = JSON.parse(data);
-        const newData = json.map(({path, name, image}) => ({path, name, image}));
+        const newData = json.map(({ path, name, images }) => {
+            const image = images[0];
+            return { path, name, image };
+        });
         const result = {
             galleries: newData
         };
@@ -108,7 +111,6 @@ router.post("/:path(\\S+)", handleUpload, (req, res) => {
         for (const element of json) {
             if (element.path === encodedPath) {
                 element.images.push(...images);
-                element.image = element.images[0];
                 break;
             }
         }
