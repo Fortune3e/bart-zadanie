@@ -108,6 +108,7 @@ router.post("/:path(\\S+)", handleUpload, (req, res) => {
         for (const element of json) {
             if (element.path === encodedPath) {
                 element.images.push(...images);
+                element.image = element.images[0];
                 break;
             }
         }
